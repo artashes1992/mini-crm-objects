@@ -1,0 +1,118 @@
+:root {
+  --pico-font-size: 100%;
+}
+
+header.container nav {
+  border-bottom: 1px solid var(--pico-muted-border-color);
+  margin-bottom: 1rem;
+}
+
+nav a.active {
+  text-decoration: underline;
+}
+
+.brand {
+  color: inherit;
+}
+
+.narrow {
+  max-width: 28rem;
+  padding-top: 10vh;
+}
+
+.muted {
+  color: var(--pico-muted-color);
+}
+
+.error {
+  color: var(--pico-del-color);
+}
+
+.pre {
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.actions button {
+  width: auto;
+  margin-bottom: 0;
+}
+
+button.small {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.filters button {
+  width: auto;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.fields dt {
+  color: var(--pico-muted-color);
+}
+
+.fields dd {
+  margin: 0;
+}
+
+.badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.badge-new {
+  background: #6b7280;
+}
+
+.badge-in_progress {
+  background: #2563eb;
+}
+
+.badge-review {
+  background: #d97706;
+}
+
+.badge-accepted {
+  background: #16a34a;
+}
+
+.badge-rework {
+  background: #dc2626;
+}
+
+details summary[role='button'] {
+  width: auto;
+  display: inline-block;
+}
