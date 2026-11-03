@@ -30,12 +30,12 @@ export function MyTasksPage() {
   return (
     <>
       <h2>Мои задачи</h2>
-      <div className="filters" role="group">
-        <button className={filter === 'all' ? '' : 'outline'} onClick={() => setFilter('all')}>
+      <div className="filters" aria-label="Фильтр по статусу">
+        <button aria-pressed={filter === 'all'} className={filter === 'all' ? '' : 'outline'} onClick={() => setFilter('all')}>
           Все {data ? `(${data.length})` : ''}
         </button>
         {STATUS_ORDER.map((s) => (
-          <button key={s} className={filter === s ? '' : 'outline'} onClick={() => setFilter(s)}>
+          <button key={s} aria-pressed={filter === s} className={filter === s ? '' : 'outline'} onClick={() => setFilter(s)}>
             {STATUS_LABEL[s]} ({(data ?? []).filter((t) => t.status === s).length})
           </button>
         ))}

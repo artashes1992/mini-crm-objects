@@ -19,6 +19,8 @@ export type Database = {
           address: string
           created_at: string
           created_by: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           name: string
         }
@@ -26,6 +28,8 @@ export type Database = {
           address: string
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           name: string
         }
@@ -33,6 +37,8 @@ export type Database = {
           address?: string
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           name?: string
         }
@@ -40,6 +46,13 @@ export type Database = {
           {
             foreignKeyName: "objects_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objects_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -138,6 +151,8 @@ export type Database = {
           assignee_id: string
           author_id: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string
           id: string
           object_id: string
@@ -149,6 +164,8 @@ export type Database = {
           assignee_id: string
           author_id?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           id?: string
           object_id: string
@@ -160,6 +177,8 @@ export type Database = {
           assignee_id?: string
           author_id?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           id?: string
           object_id?: string
@@ -178,6 +197,13 @@ export type Database = {
           {
             foreignKeyName: "tasks_author_id_fkey"
             columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -206,6 +232,8 @@ export type Database = {
           assignee_id: string
           author_id: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string
           id: string
           object_id: string
@@ -220,6 +248,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_object: { Args: { p_object_id: string }; Returns: undefined }
+      delete_task: { Args: { p_task_id: string }; Returns: undefined }
       is_manager: { Args: never; Returns: boolean }
       status_label: {
         Args: { s: Database["public"]["Enums"]["task_status"] }

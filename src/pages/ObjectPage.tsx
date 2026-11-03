@@ -36,7 +36,7 @@ export function ObjectPage() {
 
   async function remove() {
     if (!object || !confirm(`Удалить объект «${object.name}»?`)) return
-    const { error } = await supabase.from('objects').delete().eq('id', id)
+    const { error } = await supabase.rpc('delete_object', { p_object_id: id })
     if (error) return setDeleteError(errorText(error))
     navigate('/objects')
   }

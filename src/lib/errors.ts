@@ -8,7 +8,6 @@ export function errorText(error: unknown): string {
 
   if (/[а-яё]/i.test(message)) return message
   if (message.includes('Invalid login credentials')) return 'Неверный email или пароль'
-  if (message.includes('tasks_object_id_fkey')) return 'Нельзя удалить объект, пока в нём есть задачи'
   if (message.includes('row-level security') || message.includes('permission denied')) {
     return 'Недостаточно прав для этого действия'
   }

@@ -1,12 +1,14 @@
 // Проверка прав доступа «снаружи»: только публичный ключ и логины тестовых пользователей,
 // то есть ровно то, что есть у любого человека с открытым приложением.
 // Каждая проверка пытается сделать то, что запрещено, и ждёт отказа от базы.
+// Если задан SUPABASE_SECRET_KEY, в конце ключом администратора проверяется,
+// что история удалённой задачи осталась в базе.
 //
 // Запуск: SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... TEST_PASSWORD=... node scripts/security-check.mjs
 
 import { createClient } from '@supabase/supabase-js'
 
-const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, TEST_PASSWORD } = process.env
+const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, TEST_PASSWORD, SUPABASE_SECRET_KEY } = process.env
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !TEST_PASSWORD) {
   console.error('Нужны SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY и TEST_PASSWORD')
   process.exit(1)
@@ -86,7 +88,9 @@ await denied('исполнитель не меняет статус напрям
   ivanov.c.from('tasks').update({ status: 'accepted' }).eq('id', ivanovTask.id).select())
 await noRows('исполнитель не меняет название задачи',
   ivanov.c.from('tasks').update({ title: 'Взлом' }).eq('id', ivanovTask.id).select())
-await noRows('исполнитель не удаляет задачу', ivanov.c.from('tasks').delete().eq('id', ivanovTask.id).select())
+await denied('исполнитель не удаляет задачу напрямую', ivanov.c.from('tasks').delete().eq('id', ivanovTask.id).select())
+await denied('исполнитель не удаляет задачу через функцию', ivanov.c.rpc('delete_task', { p_task_id: ivanovTask.id }))
+await denied('исполнитель не удаляет объект', ivanov.c.rpc('delete_object', { p_object_id: ivanovTask.object_id }))
 await denied('исполнитель не создаёт задачу',
   ivanov.c.from('tasks').insert({ object_id: ivanovTask.object_id, title: 'Своя задача', assignee_id: ivanov.id }))
 await denied('исполнитель не создаёт объект', ivanov.c.from('objects').insert({ name: 'Свой объект', address: 'Где-то' }))
@@ -125,12 +129,24 @@ await denied('исполнителем нельзя назначить пост�
   manager.c.from('tasks').insert({ object_id: ivanovTask.object_id, title: 'Тест', assignee_id: manager.id }))
 await denied('принятую задачу нельзя изменить',
   manager.c.from('tasks').update({ title: 'Изменено' }).eq('id', acceptedTask.id).select())
-await denied('объект с задачами нельзя удалить', manager.c.from('objects').delete().eq('id', ivanovTask.object_id))
+await denied('объект с задачами нельзя удалить', manager.c.rpc('delete_object', { p_object_id: ivanovTask.object_id }))
+await denied('постановщик не удаляет объект из базы напрямую',
+  manager.c.from('objects').delete().eq('id', ivanovTask.object_id).select())
+{
+  const obj = must(
+    await manager.c.from('objects').insert({ name: 'Проверка прав (временный объект)', address: '—' }).select().single(),
+  )
+  const { error } = await manager.c.rpc('delete_object', { p_object_id: obj.id })
+  const left = must(await manager.c.from('objects').select('id').eq('id', obj.id))
+  report(!error && left.length === 0, 'пустой объект удаляется и пропадает из списков', error?.message)
+  await denied('в удалённый объект нельзя добавить задачу',
+    manager.c.from('tasks').insert({ object_id: obj.id, title: 'Тест', assignee_id: ivanov.id }))
+}
 await denied('постановщик не пишет в историю',
   manager.c.from('task_history').insert({ task_id: reviewTask.id, to_status: 'accepted', changed_by: manager.id }))
 await denied('постановщик не удаляет историю', manager.c.from('task_history').delete().eq('task_id', reviewTask.id).select())
 
-// --- Полный цикл на временной задаче, затем удаление вместе с историей ---
+// --- Полный цикл на временной задаче, затем удаление: история остаётся в базе ---
 {
   const temp = must(
     await manager.c
@@ -161,9 +177,16 @@ await denied('постановщик не удаляет историю', manage
   await denied('после «Принята» статус не меняется',
     manager.c.rpc('change_task_status', { p_task_id: temp.id, p_to_status: 'rework', p_comment: 'ещё раз' }))
 
-  const { error: delError } = await manager.c.from('tasks').delete().eq('id', temp.id)
+  await denied('постановщик не удаляет задачу из базы напрямую', manager.c.from('tasks').delete().eq('id', temp.id).select())
+  const { error: delError } = await manager.c.rpc('delete_task', { p_task_id: temp.id })
   const left = must(await manager.c.from('tasks').select('id').eq('id', temp.id))
-  report(!delError && left.length === 0, 'постановщик удаляет задачу вместе с её историей', delError?.message)
+  report(!delError && left.length === 0, 'постановщик удаляет задачу, она пропадает из списков', delError?.message)
+  await noRows('история удалённой задачи не видна через API', ivanov.c.from('task_history').select('id').eq('task_id', temp.id))
+  if (SUPABASE_SECRET_KEY) {
+    const admin = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, noSession)
+    const kept = must(await admin.from('task_history').select('id').eq('task_id', temp.id))
+    report(kept.length === 7, 'история удалённой задачи осталась в базе', `записей: ${kept.length}`)
+  }
 }
 
 console.log(failed ? `\nНе прошло проверок: ${failed}` : '\nВсе проверки пройдены')

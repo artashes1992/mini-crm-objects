@@ -1,32 +1,94 @@
-# React + TypeScript + Vite
+# Мини-CRM «Объекты и задачи»
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Тестовое задание 2B Studio. Постановщик ставит задачи по объектам (стройкам), исполнители берут их в работу и сдают на проверку, у каждой задачи есть история смены статусов.
 
-Currently, two official plugins are available:
+- Приложение: https://mini-crm-objects.vercel.app (тестовые доступы переданы в сообщении на hh.ru)
+- Стек: React 19 + TypeScript + Vite, Supabase (Postgres, Auth, RLS), Pico CSS, хостинг Vercel
+- Объяснение для руководителя: [docs/explanation.md](docs/explanation.md)
+- Решения, допущения и что не успел: [docs/decisions.md](docs/decisions.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Как запустить
 
-## React Compiler
+Нужны Node.js 20+ и проект на [supabase.com](https://supabase.com) (бесплатный тариф подходит). Supabase CLI запускается через `npx`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 1. База
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install
+npx supabase login
+npx supabase link --project-ref <project-ref>
+npx supabase db push       # таблицы, функции, триггеры, RLS — всё в supabase/migrations
+npx supabase config push   # настройки Auth: открытая регистрация выключена
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Перед `config push` замените `site_url` и `additional_redirect_urls` в `supabase/config.toml` на свой адрес.
+
+### 2. Тестовые пользователи и данные
+
+```sh
+SUPABASE_URL=https://<project-ref>.supabase.co \
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_... \
+SUPABASE_SECRET_KEY=sb_secret_... \
+TEST_PASSWORD='<пароль для тестовых пользователей>' \
+node scripts/seed.mjs
+```
+
+Скрипт создаёт постановщика `manager@example.com` и исполнителей `executor1@example.com`, `executor2@example.com`, три объекта и семь задач во всех статусах. Пользователей он заводит секретным ключом, а задачи создаёт и двигает по статусам от имени самих пользователей через обычный API. Поэтому история в базе настоящая. Секретный ключ нужен только для этого шага и только на своей машине: в репозиторий и во фронтенд он не попадает.
+
+### 3. Фронтенд
+
+```sh
+cp .env.example .env.local   # вписать URL проекта и publishable-ключ
+npm run dev                  # http://localhost:5173
+```
+
+`npm run build` собирает статику в `dist/`. На Vercel нужны те же две переменные `VITE_SUPABASE_URL` и `VITE_SUPABASE_PUBLISHABLE_KEY`. `vercel.json` отдаёт `index.html` на любой путь.
+
+### 4. Проверка защиты в обход интерфейса
+
+```sh
+SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... TEST_PASSWORD=... node scripts/security-check.mjs
+```
+
+Скрипт обращается к Supabase напрямую, с тем же публичным ключом, что и у приложения в браузере. Он делает 45 проверок: аноним, исполнитель и постановщик пытаются сделать то, что им запрещено, и база должна отказать. Затем временная задача проходит весь цикл статусов и удаляется. Если добавить `SUPABASE_SECRET_KEY`, скрипт в конце ключом администратора проверит, что история удалённой задачи осталась в базе.
+
+Сквозная проверка интерфейса в headless Chrome (16 шагов под тремя пользователями):
+
+```sh
+TEST_PASSWORD=... APP_URL=http://localhost:5173 node scripts/e2e/smoke.mjs   # без APP_URL — прод
+```
+
+### Новый сотрудник
+
+Регистрации нет, сотрудников заводит администратор: Supabase Dashboard → Authentication → Add user, либо admin API, как в `scripts/seed.mjs`. Роль хранится в `app_metadata.role` (`manager` или `executor`), пользователь сам её изменить не может. Пользователь без роли становится исполнителем. Роль меняется так, профиль обновится сам:
+
+```sql
+update auth.users
+set raw_app_meta_data = raw_app_meta_data || '{"role": "manager"}'
+where email = 'name@example.com';
+```
+
+## Как устроено
+
+```
+supabase/migrations/
+  …120000_schema.sql      таблицы profiles, objects, tasks, task_history; справочник переходов status_transitions
+  …120100_workflow.sql    служебные поля задачи, защита истории, функция change_task_status
+  …120200_security.sql    RLS и права по колонкам
+  …120300_role_sync.sql   роль из app_metadata, в том числе при её смене
+  …120400_soft_delete.sql мягкое удаление объектов и задач
+src/
+  pages/                  экраны: вход, объекты, карточка объекта, карточка задачи, «Мои задачи»
+  lib/model.ts            статусы, подписи, какие действия показать пользователю
+  lib/database.types.ts   типы, сгенерированные из схемы (supabase gen types)
+scripts/                  seed.mjs, security-check.mjs
+```
+
+Все правила хранятся в базе, а интерфейс только показывает то, что база разрешает.
+
+- **RLS на всех таблицах.** У роли `authenticated` отозваны все права и выданы заново точечно. Разрешено чтение, `insert`/`update` только перечисленных колонок: у объекта — название и адрес, у задачи — объект, название, описание и исполнитель. Статус, автор, даты и `deleted_at` в этот список не входят. Права `DELETE` нет совсем. У `anon` нет ничего.
+- **Кто что видит.** Постановщик видит всё. Исполнитель видит свои задачи и объекты, где у него есть задача, а историю — только по своим задачам. Чужая задача по прямому id не возвращается.
+- **Статусы.** Сменить статус можно только функцией `change_task_status` (`security definer`). Она проверяет роль, то, что исполнитель назначен на эту задачу, правило из `status_transitions` и комментарий для «На доработке». Строка блокируется (`for update`), статус и запись истории меняются в одной транзакции. Триггер `tasks_before_write` не даёт изменить `status` в обход этой функции и запрещает менять принятую задачу. Исполнителем можно назначить только пользователя с ролью «исполнитель».
+- **История.** Клиенту доступно только чтение. Записи создают сама база при создании задачи («— → Новая») и `change_task_status`, время ставит триггер. `UPDATE` и `TRUNCATE` запрещены триггером для всех, включая администратора. `DELETE` срабатывает только каскадом, если администратор физически удалит задачу в базе.
+- **Удаление мягкое.** Функции `delete_task` и `delete_object` доступны только постановщику и лишь помечают строку удалённой. Политики RLS такие строки скрывают, а задача и её история остаются в базе. Объект с задачами удалить нельзя, задачу нельзя создать в удалённом объекте или перенести туда.
+- **Вход.** Только по email и паролю, открытая регистрация выключена (`enable_signup = false`). Во фронтенде только publishable-ключ.

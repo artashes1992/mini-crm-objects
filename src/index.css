@@ -116,3 +116,7 @@ details summary[role='button'] {
   width: auto;
   display: inline-block;
 }
+
+footer.actions {
+  margin-bottom: 0;
+}

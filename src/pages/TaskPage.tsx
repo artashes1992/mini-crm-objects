@@ -47,8 +47,9 @@ export function TaskPage() {
   const object = task.objects
 
   async function remove() {
-    if (!confirm(`Удалить задачу «${task.title}» вместе с её историей?`)) return
-    const { error } = await supabase.from('tasks').delete().eq('id', task.id)
+    // Удаление мягкое: задача пропадёт из списков, а история останется в базе.
+    if (!confirm(`Удалить задачу «${task.title}»?`)) return
+    const { error } = await supabase.rpc('delete_task', { p_task_id: task.id })
     if (error) return setDeleteError(errorText(error))
     navigate(`/objects/${task.object_id}`)
   }
@@ -112,7 +113,7 @@ export function TaskPage() {
           {me.role === 'manager' && (
             <footer className="actions">
               {task.status === 'accepted' ? (
-                <span className="muted">Задача принята — изменить её нельзя.</span>
+                <span className="muted">Принятую задачу изменить нельзя.</span>
               ) : (
                 <button className="outline small" onClick={() => setEditing(true)}>
                   Редактировать
@@ -144,7 +145,8 @@ function Actions({ task, onChanged }: { task: Task; onChanged: () => void }) {
 
   const actions = availableTransitions(transitions, task, me)
   if (actions.length === 0) {
-    return <p className="muted">{waitingText(task, me.role)}</p>
+    const text = waitingText(task, me.role)
+    return text ? <p className="muted">{text}</p> : null
   }
   const needsComment = actions.some((a) => a.comment_required)
 
@@ -191,7 +193,8 @@ function Actions({ task, onChanged }: { task: Task; onChanged: () => void }) {
 }
 
 function waitingText(task: Task, role: 'manager' | 'executor'): string {
-  if (task.status === 'accepted') return 'Задача принята.'
+  // Постановщику о принятой задаче уже сказано в карточке.
+  if (task.status === 'accepted') return role === 'executor' ? 'Задача принята.' : ''
   if (role === 'executor') return 'Задача на проверке у постановщика.'
   return task.status === 'review' ? '' : 'Ждём действий исполнителя.'
 }

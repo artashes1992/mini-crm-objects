@@ -32,3 +32,7 @@ supabase/.branches
 
 .vercel
 .env*
+
+scripts/e2e/shots
+
+scripts/e2e/shots
